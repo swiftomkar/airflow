@@ -16,6 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+A hook to talk to Zendesk
+"""
 
 import time
 from zdesk import Zendesk, RateLimitError, ZendeskError
@@ -102,11 +105,11 @@ class ZendeskHook(BaseHook):
                         next_page = more_res['next_page']
                 except RateLimitError as rle:
                     self.__handle_rate_limit_exception(rle)
-                except ZendeskError as ze:
-                    if b"Use a start_time older than 5 minutes" in ze.msg:
+                except ZendeskError as zendesk_error:
+                    if b"Use a start_time older than 5 minutes" in zendesk_error.msg:
                         # We have pretty up to date data
                         break
                     else:
-                        raise ze
+                        raise zendesk_error
 
         return results

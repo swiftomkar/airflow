@@ -16,6 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Airflow hook to integrate Hive
+"""
 
 import contextlib
 import os
@@ -29,7 +32,7 @@ from tempfile import NamedTemporaryFile
 import unicodecsv as csv
 
 from airflow import configuration
-from airflow.exceptions import AirflowException
+from airflow.exceptions import AirflowException, AirflowNotFoundException
 from airflow.hooks.base_hook import BaseHook
 from airflow.security import utils
 from airflow.utils.file import TemporaryDirectory
@@ -89,6 +92,7 @@ class HiveCliHook(BaseHook):
         self.auth = conn.extra_dejson.get('auth', 'noSasl')
         self.conn = conn
         self.run_as = run_as
+        self.subprocess = None
 
         if mapred_queue_priority:
             mapred_queue_priority = mapred_queue_priority.upper()
@@ -242,24 +246,24 @@ class HiveCliHook(BaseHook):
 
                 if verbose:
                     self.log.info("%s", " ".join(hive_cmd))
-                sp = subprocess.Popen(
+                subprocess_open = subprocess.Popen(
                     hive_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     cwd=tmp_dir,
                     close_fds=True)
-                self.sp = sp
+                self.subprocess = subprocess_open
                 stdout = ''
                 while True:
-                    line = sp.stdout.readline()
+                    line = subprocess_open.stdout.readline()
                     if not line:
                         break
                     stdout += line.decode('UTF-8')
                     if verbose:
                         self.log.info(line.decode('UTF-8').strip())
-                sp.wait()
+                subprocess_open.wait()
 
-                if sp.returncode:
+                if subprocess_open.returncode:
                     raise AirflowException(stdout)
 
                 return stdout
@@ -339,7 +343,7 @@ class HiveCliHook(BaseHook):
         """
 
         def _infer_field_types_from_df(df):
-            DTYPE_KIND_HIVE_TYPE = {
+            dtype_kind_hive_type = {
                 'b': 'BOOLEAN',    # boolean
                 'i': 'BIGINT',     # signed integer
                 'u': 'BIGINT',     # unsigned integer
@@ -352,10 +356,10 @@ class HiveCliHook(BaseHook):
                 'V': 'STRING'      # void
             }
 
-            d = OrderedDict()
+            field_type_dict = OrderedDict()
             for col, dtype in df.dtypes.iteritems():
-                d[col] = DTYPE_KIND_HIVE_TYPE[dtype.kind]
-            return d
+                field_type_dict[col] = dtype_kind_hive_type[dtype.kind]
+            return field_type_dict
 
         if pandas_kwargs is None:
             pandas_kwargs = {}
@@ -381,17 +385,8 @@ class HiveCliHook(BaseHook):
                                       field_dict=field_dict,
                                       **kwargs)
 
-    def load_file(
-            self,
-            filepath,
-            table,
-            delimiter=",",
-            field_dict=None,
-            create=True,
-            overwrite=True,
-            partition=None,
-            recreate=False,
-            tblproperties=None):
+    def load_file(self, filepath, table, delimiter=",", field_dict=None, create=True,
+            overwrite=True, partition=None, recreate=False, tblproperties=None):
         """
         Loads a local file into Hive
 
@@ -467,12 +462,16 @@ class HiveCliHook(BaseHook):
         self.run_cli(hql)
 
     def kill(self):
-        if hasattr(self, 'sp'):
-            if self.sp.poll() is None:
+        """
+        Kills the hive job
+        :return:
+        """
+        if hasattr(self, 'subprocess'):
+            if self.subprocess.poll() is None:
                 print("Killing the Hive job")
-                self.sp.terminate()
+                self.subprocess.terminate()
                 time.sleep(60)
-                self.sp.kill()
+                self.subprocess.kill()
 
 
 class HiveMetastoreHook(BaseHook):
@@ -488,9 +487,9 @@ class HiveMetastoreHook(BaseHook):
     def __getstate__(self):
         # This is for pickling to work despite the thirft hive client not
         # being pickable
-        d = dict(self.__dict__)
-        del d['metastore']
-        return d
+        state = dict(self.__dict__)
+        del state['metastore']
+        return state
 
     def __setstate__(self, d):
         self.__dict__.update(d)
@@ -504,18 +503,18 @@ class HiveMetastoreHook(BaseHook):
         from thrift.transport import TSocket, TTransport
         from thrift.protocol import TBinaryProtocol
 
-        ms = self._find_valid_server()
+        conn = self._find_valid_server()
 
-        if ms is None:
+        if conn is None:
             raise AirflowException("Failed to locate the valid server.")
 
-        auth_mechanism = ms.extra_dejson.get('authMechanism', 'NOSASL')
+        auth_mechanism = conn.extra_dejson.get('authMechanism', 'NOSASL')
 
         if configuration.conf.get('core', 'security') == 'kerberos':
-            auth_mechanism = ms.extra_dejson.get('authMechanism', 'GSSAPI')
-            kerberos_service_name = ms.extra_dejson.get('kerberos_service_name', 'hive')
+            auth_mechanism = conn.extra_dejson.get('authMechanism', 'GSSAPI')
+            kerberos_service_name = conn.extra_dejson.get('kerberos_service_name', 'hive')
 
-        conn_socket = TSocket.TSocket(ms.host, ms.port)
+        conn_socket = TSocket.TSocket(conn.host, conn.port)
 
         if configuration.conf.get('core', 'security') == 'kerberos' \
                 and auth_mechanism == 'GSSAPI':
@@ -526,7 +525,7 @@ class HiveMetastoreHook(BaseHook):
 
             def sasl_factory():
                 sasl_client = sasl.Client()
-                sasl_client.setAttr("host", ms.host)
+                sasl_client.setAttr("host", conn.host)
                 sasl_client.setAttr("service", kerberos_service_name)
                 sasl_client.init()
                 return sasl_client
@@ -551,6 +550,7 @@ class HiveMetastoreHook(BaseHook):
                 return conn
             else:
                 self.log.info("Could not connect to %s:%s", conn.host, conn.port)
+                return None
 
     def get_conn(self):
         return self.metastore
@@ -576,11 +576,7 @@ class HiveMetastoreHook(BaseHook):
         with self.metastore as client:
             partitions = client.get_partitions_by_filter(
                 schema, table, partition, 1)
-
-        if partitions:
-            return True
-        else:
-            return False
+        return bool(partitions)
 
     def check_for_named_partition(self, schema, table, partition_name):
         """
@@ -635,7 +631,7 @@ class HiveMetastoreHook(BaseHook):
             return client.get_databases(pattern)
 
     def get_partitions(
-            self, schema, table_name, filter=None):
+            self, schema, table_name, hive_filter=None):
         """
         Returns a list of all partitions in a table. Works only
         for tables with less than 32767 (java short max val).
@@ -651,13 +647,14 @@ class HiveMetastoreHook(BaseHook):
         """
         with self.metastore as client:
             table = client.get_table(dbname=schema, tbl_name=table_name)
-            if len(table.partitionKeys) == 0:
+            partition_count = len(table.partitionKeys)
+            if partition_count == 0:
                 raise AirflowException("The table isn't partitioned")
             else:
-                if filter:
+                if hive_filter:
                     parts = client.get_partitions_by_filter(
                         db_name=schema, tbl_name=table_name,
-                        filter=filter, max_parts=HiveMetastoreHook.MAX_PART_COUNT)
+                        filter=hive_filter, max_parts=HiveMetastoreHook.MAX_PART_COUNT)
                 else:
                     parts = client.get_partitions(
                         db_name=schema, tbl_name=table_name,
@@ -714,7 +711,6 @@ class HiveMetastoreHook(BaseHook):
         If only one partition key exist in the table, the key will be used as field.
         filter_map should be a partition_key:partition_value map and will be used to
         filter out partitions.
-
         :param schema: schema name.
         :type schema: str
         :param table_name: table name.
@@ -723,7 +719,6 @@ class HiveMetastoreHook(BaseHook):
         :type field: str
         :param filter_map: partition_key:partition_value map used for partition filtering.
         :type filter_map: map
-
         >>> hh = HiveMetastoreHook()
         >>> filter_map = {'ds': '2015-01-01', 'ds': '2014-01-01'}
         >>> t = 'static_babynames_partitioned'
@@ -770,7 +765,7 @@ class HiveMetastoreHook(BaseHook):
         try:
             self.get_table(table_name, db)
             return True
-        except Exception:
+        except AirflowNotFoundException:
             return False
 
 
@@ -988,7 +983,6 @@ class HiveServer2Hook(BaseHook):
         >>> df = hh.get_pandas_df(sql)
         >>> len(df.index)
         100
-
         :return: pandas.DateFrame
         """
         import pandas as pd

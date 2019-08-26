@@ -16,6 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Airflow sqlite hook to interact with SQLite
+"""
 
 import sqlite3
 
@@ -36,6 +39,6 @@ class SqliteHook(DbApiHook):
         """
         Returns a sqlite connection object
         """
-        conn = self.get_connection(self.sqlite_conn_id)
+        conn = self.get_connection(self.conn_name_attr)
         conn = sqlite3.connect(conn.host)
         return conn

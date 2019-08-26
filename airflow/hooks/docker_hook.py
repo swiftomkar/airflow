@@ -16,6 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Interact with a private Docker registry.
+"""
 
 from docker import APIClient
 from docker.errors import APIError
@@ -61,7 +64,7 @@ class DockerHook(BaseHook, LoggingMixin):
         self.__username = conn.login
         self.__password = conn.password
         self.__email = extra_options.get('email')
-        self.__reauth = False if extra_options.get('reauth') == 'no' else True
+        self.__reauth = bool(extra_options.get('reauth') == 'no')
 
     def get_conn(self):
         client = APIClient(
@@ -84,5 +87,5 @@ class DockerHook(BaseHook, LoggingMixin):
             )
             self.log.debug('Login successful')
         except APIError as docker_error:
-            self.log.error('Docker registry login failed: %s', str(docker_error))
-            raise AirflowException('Docker registry login failed: %s', str(docker_error))
+            self.log.error('Docker registry login failed: ' + str(docker_error))
+            raise AirflowException('Docker registry login failed: ' + str(docker_error))

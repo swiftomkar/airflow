@@ -16,10 +16,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Airflow hook for MySQL DB integration
+"""
+import json
 import MySQLdb
 import MySQLdb.cursors
-import json
 
 from airflow.hooks.dbapi_hook import DbApiHook
 
@@ -68,7 +70,7 @@ class MySqlHook(DbApiHook):
         """
         Returns a mysql connection object
         """
-        conn = self.get_connection(self.mysql_conn_id)
+        conn = self.get_connection(self.conn_name_attr)
 
         conn_config = {
             "user": conn.login,
@@ -140,7 +142,7 @@ class MySqlHook(DbApiHook):
         conn.commit()
 
     @staticmethod
-    def _serialize_cell(cell, conn):
+    def _serialize_cell(cell, conn=None):
         """
         MySQLdb converts an argument to a literal
         when passing those separately to execute. Hence, this method does nothing.

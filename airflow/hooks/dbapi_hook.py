@@ -16,11 +16,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Abstract base sql hook handler
+"""
 
-from typing import Optional
-from typing_extensions import Protocol
 from datetime import datetime
 from contextlib import closing
+from typing import Optional
+from typing_extensions import Protocol
 
 from sqlalchemy import create_engine
 
@@ -29,7 +32,23 @@ from airflow.exceptions import AirflowException
 
 
 class ConnectorProtocol(Protocol):
-    def connect(host, port, username, schema):
+    """
+    ConnectorProtocol
+    """
+
+    def connect(self, host, port, username, schema):
+        """
+
+        :param host:
+        :param port:
+        :param username:
+        :param schema:
+        :return:
+        """
+        host = host
+        port = port
+        username = username
+        schema = schema
         ...
 
 
@@ -47,6 +66,7 @@ class DbApiHook(BaseHook):
     connector = None  # type: Optional[ConnectorProtocol]
 
     def __init__(self, *args, **kwargs):
+
         if not self.conn_name_attr:
             raise AirflowException("conn_name_attr is not defined")
         elif len(args) == 1:
@@ -67,6 +87,10 @@ class DbApiHook(BaseHook):
             schema=db.schema)
 
     def get_uri(self):
+        """
+
+        :return:
+        """
         conn = self.get_connection(getattr(self, self.conn_name_attr))
         login = ''
         if conn.login:
@@ -78,6 +102,11 @@ class DbApiHook(BaseHook):
             conn=conn, login=login, host=host)
 
     def get_sqlalchemy_engine(self, engine_kwargs=None):
+        """
+
+        :param engine_kwargs:
+        :return:
+        """
         if engine_kwargs is None:
             engine_kwargs = {}
         return create_engine(self.get_uri(), **engine_kwargs)
@@ -156,13 +185,13 @@ class DbApiHook(BaseHook):
                 self.set_autocommit(conn, autocommit)
 
             with closing(conn.cursor()) as cur:
-                for s in sql:
+                for sql_query in sql:
                     if parameters is not None:
-                        self.log.info("{} with parameters {}".format(s, parameters))
-                        cur.execute(s, parameters)
+                        self.log.info("{} with parameters {}".format(sql_query, parameters))
+                        cur.execute(sql_query, parameters)
                     else:
-                        self.log.info(s)
-                        cur.execute(s)
+                        self.log.info(sql_query)
+                        cur.execute(sql_query)
 
             # If autocommit was set to False for db that supports autocommit,
             # or if db does not supports autocommit, we do a manual commit.
@@ -268,6 +297,8 @@ class DbApiHook(BaseHook):
         :return: The serialized cell
         :rtype: str
         """
+        if conn is None:
+            raise AirflowException("Connection type is None")
 
         if cell is None:
             return None

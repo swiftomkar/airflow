@@ -16,12 +16,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Airflow hook for Oracle SQL DB
+"""
+from datetime import datetime
 
 import cx_Oracle
+import numpy
 
 from airflow.hooks.dbapi_hook import DbApiHook
-from datetime import datetime
-import numpy
 
 
 class OracleHook(DbApiHook):
@@ -50,7 +53,7 @@ class OracleHook(DbApiHook):
         see more param detail in
         `cx_Oracle.connect <https://cx-oracle.readthedocs.io/en/latest/module.html#cx_Oracle.connect>`_
         """
-        conn = self.get_connection(self.oracle_conn_id)
+        conn = self.get_connection(self.conn_name_attr)
         conn_config = {
             'user': conn.login,
             'password': conn.password
@@ -154,7 +157,7 @@ class OracleHook(DbApiHook):
                     lst.append("'" + str(cell).replace("'", "''") + "'")
                 elif cell is None:
                     lst.append('NULL')
-                elif type(cell) == float and \
+                elif isinstance(cell, float) and \
                         numpy.isnan(cell):  # coerce numpy NaN to NULL
                     lst.append('NULL')
                 elif isinstance(cell, numpy.datetime64):

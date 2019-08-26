@@ -16,9 +16,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-from smbclient import SambaClient
+"""
+Airflow hook for samba server
+"""
 import os
+from smbclient import SambaClient
 
 from airflow.hooks.base_hook import BaseHook
 
@@ -41,6 +43,12 @@ class SambaHook(BaseHook):
         return samba
 
     def push_from_local(self, destination_filepath, local_filepath):
+        """
+
+        :param destination_filepath: destination path String
+        :param local_filepath: local path String
+        :return:
+        """
         samba = self.get_conn()
         if samba.exists(destination_filepath):
             if samba.isfile(destination_filepath):

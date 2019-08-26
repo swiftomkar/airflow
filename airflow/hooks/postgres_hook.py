@@ -16,11 +16,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Airflow hook for Postgres DB integration
+"""
 import os
+from contextlib import closing
 import psycopg2
 import psycopg2.extensions
-from contextlib import closing
 
 from airflow.hooks.dbapi_hook import DbApiHook
 
@@ -51,9 +53,10 @@ class PostgresHook(DbApiHook):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.schema = kwargs.pop("schema", None)
+        self.conn = None
 
     def get_conn(self):
-        conn = self.get_connection(self.postgres_conn_id)
+        conn = self.get_connection(self.conn_name_attr)
 
         # check for authentication via AWS IAM
         if conn.extra_dejson.get('iam', False):
@@ -110,7 +113,7 @@ class PostgresHook(DbApiHook):
         self.copy_expert("COPY {table} TO STDOUT".format(table=table), tmp_file)
 
     @staticmethod
-    def _serialize_cell(cell, conn):
+    def _serialize_cell(cell, conn=None):
         """
         Postgresql will adapt all arguments to the execute() method internally,
         hence we return cell without any conversion.

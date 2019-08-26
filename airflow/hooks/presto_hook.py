@@ -16,6 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Airflow hook to integrate with Presto
+"""
 
 from pyhive import presto
 from pyhive.exc import DatabaseError
@@ -25,8 +28,9 @@ from airflow.hooks.dbapi_hook import DbApiHook
 
 
 class PrestoException(Exception):
-    pass
-
+    """
+    Presto exception handler
+    """
 
 class PrestoHook(DbApiHook):
     """
@@ -43,7 +47,7 @@ class PrestoHook(DbApiHook):
 
     def get_conn(self):
         """Returns a connection object"""
-        db = self.get_connection(self.presto_conn_id)
+        db = self.get_connection(self.conn_name_attr)
         reqkwargs = None
         if db.password is not None:
             reqkwargs = {'auth': HTTPBasicAuth(db.login, db.password)}

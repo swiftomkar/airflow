@@ -16,7 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Airflow hook for integrating the pig CLI
+"""
 import subprocess
 from tempfile import NamedTemporaryFile
 
@@ -41,6 +43,7 @@ class PigCliHook(BaseHook):
         conn = self.get_connection(pig_cli_conn_id)
         self.pig_properties = conn.extra_dejson.get('pig_properties', '')
         self.conn = conn
+        self.subprocess_open = None
 
     def run_cli(self, pig, pig_opts=None, verbose=True):
         """
@@ -73,27 +76,31 @@ class PigCliHook(BaseHook):
 
                 if verbose:
                     self.log.info("%s", " ".join(pig_cmd))
-                sp = subprocess.Popen(
+                subprocess_open = subprocess.Popen(
                     pig_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     cwd=tmp_dir,
                     close_fds=True)
-                self.sp = sp
+                self.subprocess_open = subprocess_open
                 stdout = ''
-                for line in iter(sp.stdout.readline, b''):
+                for line in iter(subprocess_open.stdout.readline, b''):
                     stdout += line.decode('utf-8')
                     if verbose:
                         self.log.info(line.strip())
-                sp.wait()
+                subprocess_open.wait()
 
-                if sp.returncode:
+                if subprocess_open.returncode:
                     raise AirflowException(stdout)
 
                 return stdout
 
     def kill(self):
+        """
+        Kills the pig job
+        :return:
+        """
         if hasattr(self, 'sp'):
-            if self.sp.poll() is None:
+            if self.subprocess_open.poll() is None:
                 print("Killing the Pig job")
-                self.sp.kill()
+                self.subprocess_open.kill()
