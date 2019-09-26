@@ -78,7 +78,7 @@ class PostgresHook(DbApiHook):
         self.conn = psycopg2.connect(**conn_args)
         return self.conn
 
-    def copy_expert(self, sql, filename, open=open):
+    def copy_expert(self, sql, filename, operation=open):
         """
         Executes SQL using psycopg2 copy_expert method.
         Necessary to execute COPY command without access to a superuser.
@@ -90,10 +90,10 @@ class PostgresHook(DbApiHook):
         they have to check its existence by themselves.
         """
         if not os.path.isfile(filename):
-            with open(filename, 'w'):
+            with operation(filename, 'w'):
                 pass
 
-        with open(filename, 'r+') as file:
+        with operation(filename, 'r+') as file:
             with closing(self.get_conn()) as conn:
                 with closing(conn.cursor()) as cur:
                     cur.copy_expert(sql, file)

@@ -84,32 +84,31 @@ class ZendeskHook(BaseHook):
             keys += query['include'].split(',')
         results = {key: results[key] for key in keys}
 
-        if get_all_pages:
-            while next_page is not None:
-                try:
-                    # Need to split because the next page URL has
-                    # `github.zendesk...`
-                    # in it, but the call function needs it removed.
-                    next_url = next_page.split(self.__url)[1]
-                    self.log.info("Calling %s", next_url)
-                    more_res = zendesk.call(next_url)
-                    for key in results:
-                        results[key].extend(more_res[key])
-                    if next_page == more_res['next_page']:
-                        # Unfortunately zdesk doesn't always throw ZendeskError
-                        # when we are done getting all the data. Sometimes the
-                        # next just refers to the current set of results.
-                        # Hence, need to deal with this special case
-                        break
-                    else:
-                        next_page = more_res['next_page']
-                except RateLimitError as rle:
-                    self.__handle_rate_limit_exception(rle)
-                except ZendeskError as zendesk_error:
-                    if b"Use a start_time older than 5 minutes" in zendesk_error.msg:
-                        # We have pretty up to date data
-                        break
-                    else:
-                        raise zendesk_error
+        while get_all_pages and next_page is not None:
+            try:
+                # Need to split because the next page URL has
+                # `github.zendesk...`
+                # in it, but the call function needs it removed.
+                next_url = next_page.split(self.__url)[1]
+                self.log.info("Calling %s", next_url)
+                more_res = zendesk.call(next_url)
+                for key in results:
+                    results[key].extend(more_res[key])
+                if next_page == more_res['next_page']:
+                    # Unfortunately zdesk doesn't always throw ZendeskError
+                    # when we are done getting all the data. Sometimes the
+                    # next just refers to the current set of results.
+                    # Hence, need to deal with this special case
+                    break
+                else:
+                    next_page = more_res['next_page']
+            except RateLimitError as rle:
+                self.__handle_rate_limit_exception(rle)
+            except ZendeskError as zendesk_error:
+                if b"Use a start_time older than 5 minutes" in zendesk_error.msg:
+                    # We have pretty up to date data
+                    break
+                else:
+                    raise zendesk_error
 
         return results

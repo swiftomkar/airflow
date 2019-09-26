@@ -42,7 +42,7 @@ class MsSqlHook(DbApiHook):
         """
         Returns a mssql connection object
         """
-        conn = self.get_connection(self.mssql_conn_id)
+        conn = self.get_connection(self.conn_name_attr)
         conn = pymssql.connect(
             server=conn.host,
             user=conn.login,

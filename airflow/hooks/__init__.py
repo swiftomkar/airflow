@@ -31,4 +31,4 @@ def _integrate_plugins():
     from airflow.plugins_manager import hooks_modules
     for hooks_module in hooks_modules:
         sys.modules[hooks_module.__name__] = hooks_module
-        globals()[hooks_module._name] = hooks_module
+        globals()[hooks_module._name] = hooks_module  # pylint:disable=W0212
