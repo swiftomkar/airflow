@@ -19,8 +19,10 @@ from typing import List, Optional, Union
 
 from airflow.models import BaseOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.amazon.aws.hooks.aws_dynamodb import AwsDynamoDBHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.decorators import apply_defaults
+from airflow.exceptions import AirflowException
 
 
 class S3ToRedshiftTransfer(BaseOperator):
@@ -63,47 +65,53 @@ class S3ToRedshiftTransfer(BaseOperator):
             self,
             schema: str,
             table: str,
-            s3_bucket: str,
-            s3_key: str,
+            data_source: Optional[str] = 's3',
+            s3bucket_or_dynamodbtable: Optional[str] = None,
+            s3_key: Optional[str] = None,
             redshift_conn_id: str = 'redshift_default',
             aws_conn_id: str = 'aws_default',
             verify: Optional[Union[bool, str]] = None,
             copy_options: Optional[List] = None,
+            operation='UPSERT',
             autocommit: bool = False,
             *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.schema = schema
         self.table = table
-        self.s3_bucket = s3_bucket
+        self.data_source = data_source
+        self.s3bucket_or_dynamodbtable = s3bucket_or_dynamodbtable
         self.s3_key = s3_key
-        self.redshift_conn_id = redshift_conn_id
-        self.aws_conn_id = aws_conn_id
-        self.verify = verify
         self.copy_options = copy_options or []
         self.autocommit = autocommit
-        self._s3_hook = None
-        self._postgres_hook = None
+        self.operation = operation
+        self._postgres_hook = PostgresHook(redshift_conn_id)
+        if data_source is 's3':
+            self._data_source_hook = S3Hook(aws_conn_id=aws_conn_id, verify=verify).get_credentials()
+        else:
+            self._data_source_hook = AwsDynamoDBHook(aws_conn_id=aws_conn_id, verify=verify).get_credentials()
 
-    def execute(self, context):
-        self._postgres_hook = PostgresHook(postgres_conn_id=self.redshift_conn_id)
-        self._s3_hook = S3Hook(aws_conn_id=self.aws_conn_id, verify=self.verify)
-        credentials = self._s3_hook.get_credentials()
-        copy_options = '\n\t\t\t'.join(self.copy_options)
-
+    def _copy_data(self, credentials, schema=None, table=None):
         copy_query = """
-            COPY {schema}.{table}
-            FROM 's3://{s3_bucket}/{s3_key}/{table}'
-            with credentials
-            'aws_access_key_id={access_key};aws_secret_access_key={secret_key}'
-            {copy_options};
-        """.format(schema=self.schema,
-                   table=self.table,
-                   s3_bucket=self.s3_bucket,
-                   s3_key=self.s3_key,
-                   access_key=credentials.access_key,
-                   secret_key=credentials.secret_key,
-                   copy_options=copy_options)
+                    COPY {schema}.{table}
+                    FROM '{data_source}://{s3bucket_or_dynamodbtable}/{s3_key}'
+                    with credentials
+                    'aws_access_key_id={access_key};aws_secret_access_key={secret_key}'
+                    {copy_options};
+                """.format(schema=schema,
+                           table=table,
+                           data_source=self.data_source,
+                           s3bucket_or_dynamodbtable=self.s3bucket_or_dynamodbtable,
+                           s3_key=self.s3_key,
+                           access_key=credentials.access_key,
+                           secret_key=credentials.secret_key,
+                           copy_options=self.copy_options)
 
         self.log.info('Executing COPY command...')
         self._postgres_hook.run(copy_query, self.autocommit)
         self.log.info("COPY command complete...")
+
+    def execute(self, context):
+        if self.operation is "COPY":
+            self._copy_data(self._data_source_hook, self.schema, self.table)
+        else:
+            raise AirflowException("Invalid operation; options [COPY, UPSERT]")
