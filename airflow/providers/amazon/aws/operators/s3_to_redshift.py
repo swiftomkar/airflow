@@ -85,7 +85,7 @@ class S3ToRedshiftTransfer(BaseOperator):
         self.autocommit = autocommit
         self.operation = operation
         self._postgres_hook = PostgresHook(redshift_conn_id)
-        if data_source is 's3':
+        if data_source == 's3':
             self._data_source_hook = S3Hook(aws_conn_id=aws_conn_id, verify=verify).get_credentials()
         else:
             self._data_source_hook = AwsDynamoDBHook(aws_conn_id=aws_conn_id, verify=verify).get_credentials()
@@ -111,7 +111,7 @@ class S3ToRedshiftTransfer(BaseOperator):
         self.log.info("COPY command complete...")
 
     def execute(self, context):
-        if self.operation is "COPY":
+        if self.operation == "COPY":
             self._copy_data(self._data_source_hook, self.schema, self.table)
         else:
             raise AirflowException("Invalid operation; options [COPY, UPSERT]")
