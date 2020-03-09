@@ -61,7 +61,7 @@ class S3ToRedshiftTransfer(BaseOperator):
     ui_color = '#ededed'
 
     @apply_defaults
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
             self,
             schema: str,
             table: str,
@@ -73,8 +73,9 @@ class S3ToRedshiftTransfer(BaseOperator):
             verify: Optional[Union[bool, str]] = None,
             copy_options: Optional[List] = None,
             operation='UPSERT',
-            autocommit: bool = False) -> None:
-        super().__init__()
+            autocommit: bool = False,
+            *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self.schema = schema
         self.table = table
         self.data_source = data_source
