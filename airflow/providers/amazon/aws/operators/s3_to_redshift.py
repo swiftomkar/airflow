@@ -73,9 +73,8 @@ class S3ToRedshiftTransfer(BaseOperator):
             verify: Optional[Union[bool, str]] = None,
             copy_options: Optional[List] = None,
             operation='UPSERT',
-            autocommit: bool = False,
-            *args, **kwargs) -> None:  # pylint: disable=R0913
-        super().__init__(*args, **kwargs)
+            autocommit: bool = False) -> None:
+        super().__init__()
         self.schema = schema
         self.table = table
         self.data_source = data_source
