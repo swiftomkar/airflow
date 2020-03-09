@@ -17,12 +17,12 @@
 # under the License.
 from typing import List, Optional, Union
 
+from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.amazon.aws.hooks.aws_dynamodb import AwsDynamoDBHook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.decorators import apply_defaults
-from airflow.exceptions import AirflowException
 
 
 class S3ToRedshiftTransfer(BaseOperator):
@@ -74,7 +74,7 @@ class S3ToRedshiftTransfer(BaseOperator):
             copy_options: Optional[List] = None,
             operation='UPSERT',
             autocommit: bool = False,
-            *args, **kwargs) -> None:
+            *args, **kwargs) -> None:  # pylint: disable=R0913
         super().__init__(*args, **kwargs)
         self.schema = schema
         self.table = table
