@@ -39,8 +39,8 @@ class TestS3ToRedshiftTransfer(unittest.TestCase):
         table = "table"
         s3bucket_or_dynamodbtable = "bucket"
         s3_key = "key"
-        copy_options = ""
-        operation = "COPY"
+        copy_options = []
+        operation = "UPSERT"
         data_source = "s3"
 
         op = S3ToRedshiftTransfer(
