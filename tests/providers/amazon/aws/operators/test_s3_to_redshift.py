@@ -37,16 +37,20 @@ class TestS3ToRedshiftTransfer(unittest.TestCase):
 
         schema = "schema"
         table = "table"
-        s3_bucket = "bucket"
+        s3bucket_or_dynamodbtable = "bucket"
         s3_key = "key"
         copy_options = ""
+        operation = "UPSERT"
+        data_source = "s3"
 
         op = S3ToRedshiftTransfer(
             schema=schema,
             table=table,
-            s3_bucket=s3_bucket,
+            s3bucket_or_dynamodbtable=s3bucket_or_dynamodbtable,
             s3_key=s3_key,
             copy_options=copy_options,
+            operation=operation,
+            data_source=data_source,
             redshift_conn_id="redshift_conn_id",
             aws_conn_id="aws_conn_id",
             task_id="task_id",
@@ -55,17 +59,18 @@ class TestS3ToRedshiftTransfer(unittest.TestCase):
 
         copy_query = """
             COPY {schema}.{table}
-            FROM 's3://{s3_bucket}/{s3_key}/{table}'
+            FROM '{data_source}://{s3bucket_or_dynamodbtable}/{s3_key}'
             with credentials
             'aws_access_key_id={access_key};aws_secret_access_key={secret_key}'
             {copy_options};
         """.format(schema=schema,
                    table=table,
-                   s3_bucket=s3_bucket,
+                   s3bucket_or_dynamodbtable=s3bucket_or_dynamodbtable,
                    s3_key=s3_key,
                    access_key=access_key,
                    secret_key=secret_key,
-                   copy_options=copy_options)
+                   copy_options=copy_options,
+                   data_source=data_source)
 
         assert mock_run.call_count == 1
         assert_equal_ignore_multiple_spaces(self, mock_run.call_args[0][0], copy_query)
