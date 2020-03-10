@@ -72,7 +72,7 @@ class S3ToRedshiftTransfer(BaseOperator):
             aws_conn_id: str = 'aws_default',
             verify: Optional[Union[bool, str]] = None,
             copy_options: Optional[List] = None,
-            operation='UPSERT',
+            operation='COPY',
             autocommit: bool = False,
             *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
